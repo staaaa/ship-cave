@@ -20,29 +20,6 @@ namespace Water.Waves
         
         [Header("Surface shader")]
         [SerializeField] private Material waterMaterial;
-        
-        [Header("Shader Properties - Colors")]
-        [SerializeField] private Color waterColor = new Color(0, 0.4f, 0.7f, 0.5f);
-        [SerializeField] private Color depthColor = new Color(0, 0.1f, 0.3f, 1f);
-        [SerializeField, Range(0, 1)] private float smoothness = 0.9f;
-        [SerializeField, Range(0, 10)] private float fresnelPower = 5f;
-        
-        [Header("Shader Properties - Foam")]
-        [SerializeField] private Color foamColor = new Color(1, 1, 1, 0.9f);
-        [SerializeField, Range(-2, 2)] private float foamThreshold = 0.5f;
-        [SerializeField, Range(0.01f, 2)] private float foamSpread = 0.3f;
-        [SerializeField] private float foamNoiseScale = 5f;
-        [SerializeField] private float foamSpeed = 0.5f;
-        
-        [Header("Shader Properties - Caustics")]
-        [SerializeField] private Texture2D causticsTexture;
-        [SerializeField] private float causticsScale = 0.5f;
-        [SerializeField] private float causticsSpeed = 0.2f;
-        [SerializeField, Range(0, 2)] private float causticsStrength = 0.5f;
-        
-        [Header("Shader Properties - Reflections")]
-        [SerializeField, Range(0, 1)] private float reflectionStrength = 0.8f;
-        [SerializeField, Range(0, 0.5f)] private float reflectionDistortion = 0.05f;
 
         private WaveSystem _waveSystem;
         private Material _waterMaterial;
@@ -71,7 +48,7 @@ namespace Water.Waves
         
         private void Awake()
         {
-            _waveSystem = WaveSystem.Instance;
+            _waveSystem = FindFirstObjectByType<WaveSystem>();
             if (_waveSystem == null)
             {
                 Debug.LogError("WaveSystem not found! Water surface won't animate.");
@@ -109,34 +86,10 @@ namespace Water.Waves
 
         private void CacheShaderPropertyIDs()
         {
-            // Wave properties
             _waveDirectionsID = Shader.PropertyToID("_WaveDirections");
             _waveParamsID = Shader.PropertyToID("_WaveParams");
             _waveCountID = Shader.PropertyToID("_WaveCount");
             _waterLevelID = Shader.PropertyToID("_WaterLevel");
-            
-            // Color properties
-            _colorID = Shader.PropertyToID("_Color");
-            _depthColorID = Shader.PropertyToID("_DepthColor");
-            _smoothnessID = Shader.PropertyToID("_Smoothness");
-            _fresnelPowerID = Shader.PropertyToID("_FresnelPower");
-            
-            // Foam properties
-            _foamColorID = Shader.PropertyToID("_FoamColor");
-            _foamThresholdID = Shader.PropertyToID("_FoamThreshold");
-            _foamSpreadID = Shader.PropertyToID("_FoamSpread");
-            _foamNoiseScaleID = Shader.PropertyToID("_FoamNoiseScale");
-            _foamSpeedID = Shader.PropertyToID("_FoamSpeed");
-            
-            // Caustics properties
-            _causticsTexID = Shader.PropertyToID("_CausticsTex");
-            _causticsScaleID = Shader.PropertyToID("_CausticsScale");
-            _causticsSpeedID = Shader.PropertyToID("_CausticsSpeed");
-            _causticsStrengthID = Shader.PropertyToID("_CausticsStrength");
-            
-            // Reflection properties
-            _reflectionStrengthID = Shader.PropertyToID("_ReflectionStrength");
-            _reflectionDistortionID = Shader.PropertyToID("_ReflectionDistortion");
         }
 
         private void Start()
@@ -181,26 +134,11 @@ namespace Water.Waves
             transform.localScale = Vector3.one;
     
             GenerateWaterMesh(gridSize);
-            
-            Vector3[] vertices = _mesh.vertices;
-            for (int i = 0; i < vertices.Length; i++)
-            {
-                vertices[i].y = 0;
-            }
-            _mesh.vertices = vertices;
-            _mesh.RecalculateBounds();
         }
         
         //Generates water surface plane
         public void GenerateWaterMesh(float meshSize)
         {
-            int safeResolution = Mathf.Clamp(gridResolution, 10, 500);
-            if (safeResolution != gridResolution)
-            {
-                Debug.LogWarning($"Grid resolution clamped from {gridResolution} to {safeResolution} for safety");
-                gridResolution = safeResolution;
-            }
-            
             _mesh = new Mesh();
             _mesh.indexFormat = IndexFormat.UInt32;
             _mesh.name = "Water Surface";
@@ -269,74 +207,50 @@ namespace Water.Waves
         
         private void UpdateWaveShaderProperties()
         {
-            var allWaves = _waveSystem.GetWaves();
-            
-            // Sort waves by amplitude
-            var sortedWaves = new System.Collections.Generic.List<WaveSystem.Wave>(allWaves);
-            sortedWaves.Sort((a, b) => b.amplitude.CompareTo(a.amplitude));
-            
-            // Only send N biggest ones
-            int waveCount = Mathf.Min(sortedWaves.Count, maxShaderWaves);
-            waveCount = Mathf.Min(waveCount, 32);
-
-            // Prepare shader data
-            Vector4[] waveDirections = new Vector4[32];
-            Vector4[] waveParams = new Vector4[32];
-
+            if (_waveSystem == null) return;
+    
+            var waves = _waveSystem.GetWaves();
+            if (waves == null || waves.Length == 0) return;
+    
+            // Ogranicz liczbę fal wysyłanych do shadera (performance)
+            int waveCount = Mathf.Min(waves.Length, maxShaderWaves);
+    
+            // Przygotuj dane dla shadera
+            Vector4[] directions = new Vector4[waveCount];
+            Vector4[] parameters = new Vector4[waveCount];
+    
             for (int i = 0; i < waveCount; i++)
             {
-                var w = sortedWaves[i];
-                
-                waveDirections[i] = new Vector4(
-                    w.direction.x,
-                    w.direction.y,
-                    w.frequency,
-                    w.amplitude
+                var wave = waves[i];
+        
+                // _WaveDirections: (dirX, dirY, frequency, phase)
+                directions[i] = new Vector4(
+                    wave.direction.x,
+                    wave.direction.y,
+                    wave.frequency,
+                    wave.phase
                 );
-
-                waveParams[i] = new Vector4(
-                    w.phase,
-                    w.steepness,
-                    0, 0
+        
+                // _WaveParams: (amplitude, steepness, waveLength, speed)
+                parameters[i] = new Vector4(
+                    wave.amplitude,
+                    wave.steepness,
+                    wave.waveLength,
+                    wave.speed
                 );
             }
-
-            // Send to shader
-            _waterMaterial.SetVectorArray(_waveDirectionsID, waveDirections);
-            _waterMaterial.SetVectorArray(_waveParamsID, waveParams);
+    
+            // Wyślij do shadera
+            _waterMaterial.SetVectorArray(_waveDirectionsID, directions);
+            _waterMaterial.SetVectorArray(_waveParamsID, parameters);
             _waterMaterial.SetInt(_waveCountID, waveCount);
-            _waterMaterial.SetFloat(_waterLevelID, _waveSystem.GetWaterLevel());
+            _waterMaterial.SetFloat("_Time", Time.time);
         }
         
         private void UpdateStaticShaderProperties()
         {
             if (_waterMaterial == null) return;
-
-            // Colors
-            _waterMaterial.SetColor(_colorID, waterColor);
-            _waterMaterial.SetColor(_depthColorID, depthColor);
-            _waterMaterial.SetFloat(_smoothnessID, smoothness);
-            _waterMaterial.SetFloat(_fresnelPowerID, fresnelPower);
-            
-            // Foam
-            _waterMaterial.SetColor(_foamColorID, foamColor);
-            _waterMaterial.SetFloat(_foamThresholdID, foamThreshold);
-            _waterMaterial.SetFloat(_foamSpreadID, foamSpread);
-            _waterMaterial.SetFloat(_foamNoiseScaleID, foamNoiseScale);
-            _waterMaterial.SetFloat(_foamSpeedID, foamSpeed);
-            
-            // Caustics
-            if (causticsTexture != null)
-            {
-                _waterMaterial.SetTexture(_causticsTexID, causticsTexture);
-            }
-            _waterMaterial.SetFloat(_causticsScaleID, causticsScale);
-            _waterMaterial.SetFloat(_causticsSpeedID, causticsSpeed);
-            _waterMaterial.SetFloat(_causticsStrengthID, causticsStrength);
-            
-            // Reflections
-            _waterMaterial.SetFloat(_reflectionStrengthID, reflectionStrength);
-            _waterMaterial.SetFloat(_reflectionDistortionID, reflectionDistortion);
+            _waterMaterial.SetFloat(_waterLevelID, transform.position.y);
         }
 
         private void OnDestroy()
@@ -349,25 +263,6 @@ namespace Water.Waves
             if (_waterMaterial != null)
             {
                 Destroy(_waterMaterial);
-            }
-        }
-        
-        private void OnDrawGizmosSelected()
-        {
-            if (_waterVolume != null)
-            {
-                Collider volumeCollider = _waterVolume.GetComponent<Collider>();
-                if (volumeCollider != null)
-                {
-                    Bounds bounds = volumeCollider.bounds;
-                    float gridSize = Mathf.Max(bounds.size.x, bounds.size.z);
-                    
-                    Gizmos.color = new Color(0, 0.5f, 1f, 0.3f);
-                    Gizmos.DrawWireCube(
-                        new Vector3(bounds.center.x, bounds.max.y, bounds.center.z),
-                        new Vector3(gridSize, 0.1f, gridSize)
-                    );
-                }
             }
         }
         

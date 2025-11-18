@@ -2589,25 +2589,10 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   _waterVolume: {fileID: 815634250}
-  gridResolution: 200
+  gridResolution: 500
   generateOnStart: 1
   maxShaderWaves: 100
   waterMaterial: {fileID: 2100000, guid: dd41de6d9553d8a48b6b16d6e3dc23c1, type: 2}
-  waterColor: {r: 0.1999822, g: 0.31243676, b: 0.3962264, a: 0.5}
-  depthColor: {r: 0, g: 0.1, b: 0.3, a: 1}
-  smoothness: 0.9
-  fresnelPower: 5
-  foamColor: {r: 1, g: 1, b: 1, a: 0.9}
-  foamThreshold: 1.7
-  foamSpread: 2
-  foamNoiseScale: 20
-  foamSpeed: 0.5
-  causticsTexture: {fileID: 2800000, guid: 512857f518f4b10409411151c9ecd9f1, type: 3}
-  causticsScale: 0.5
-  causticsSpeed: 0.2
-  causticsStrength: 2
-  reflectionStrength: 0.8
-  reflectionDistortion: 0.05
 --- !u!23 &1233794559
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -3152,38 +3137,16 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f7e32a52609946a0885a6a55bd8e54a5, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  waveLayers:
-  - name: Ocean Swells
-    waveCount: 8
-    minWaveLength: 50
-    maxWaveLength: 200
-    amplitudeScale: 3
-    steepness: 0.2
-    directionalSpread: 20
-  - name: Medium Waves
-    waveCount: 25
-    minWaveLength: 5
-    maxWaveLength: 20
-    amplitudeScale: 1.5
-    steepness: 0.35
-    directionalSpread: 45
-  - name: Small Ripples
-    waveCount: 40
-    minWaveLength: 0.5
-    maxWaveLength: 3
-    amplitudeScale: 0.5
-    steepness: 0.4
-    directionalSpread: 90
+  waveCount: 100
   windDirection: 0
+  directionalSpread: 45
   windSpeed: 1000
   fetch: 100
-  enableWindGusts: 1
-  gustFrequency: 0.1
-  gustStrength: 0.3
-  gustScale: {x: 50, y: 50}
-  calculateFoam: 1
-  foamThreshold: 0.6
+  minWaveLength: 0.5
+  maxWaveLength: 50
+  amplitudeMultiplier: 2
   randomSeed: 12345
+  steepnessGlobal: 0.3
   waterLevel: 0
   gravity: 9.81
   gridSize: 50
